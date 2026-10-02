@@ -1,61 +1,59 @@
-# main.py
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import Optional
-from uuid import uuid4
-import uvicorn
+from contextlib import asynccontextmanager
+from typing import Any
+from models import Number
+from demo_auth.views import router
 
-app = FastAPI(title="Rankly API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
 
-# ---------- Models ----------
-class ItemIn(BaseModel):
-    name: str = Field(..., min_length=1)
-    description: Optional[str] = None
-    score: float = 0.0
+app = FastAPI(lifespan=lifespan)
+app.include_router(router=router)
 
-class Item(ItemIn):
-    id: str
 
-# ---------- In-memory storage ----------
-db: dict[str, Item] = {}
+contacts_of_users = [
 
-# ---------- Routes ----------
-@app.get("/")
-def root():
-    return {"status": "ok"}
+]
 
-@app.post("/items", response_model=Item)
-def create_item(item: ItemIn):
-    item_id = str(uuid4())
-    new_item = Item(id=item_id, **item.model_dump())
-    db[item_id] = new_item
-    return new_item
 
-@app.get("/items", response_model=list[Item])
-def list_items():
-    return list(db.values())
+@app.get('/')
+async def main() -> dict[str, Any]:
+    return {
+        'status' : 'ok',
+        'code' : 200
+    }
 
-@app.get("/items/{item_id}", response_model=Item)
-def get_item(item_id: str):
-    item = db.get(item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return item
+@app.get('/contacts')
+async def get_contacts() -> dict:
+    return {
+        i+1: v.number for i, v in enumerate(contacts_of_users)
+    }
 
-@app.put("/items/{item_id}", response_model=Item)
-def update_item(item_id: str, item: ItemIn):
-    if item_id not in db:
-        raise HTTPException(status_code=404, detail="Item not found")
-    updated = Item(id=item_id, **item.model_dump())
-    db[item_id] = updated
-    return updated
+@app.get('/contacts/{number}')
+async def get_contact(number: int) -> dict:
+    for contact in contacts_of_users:
+        if number == contact.number:
+            return {
+                "number" : number
+            }
+    raise HTTPException(
+        status_code=404,
+        detail="Number not found"
+    )
 
-@app.delete("/items/{item_id}")
-def delete_item(item_id: str):
-    if item_id not in db:
-        raise HTTPException(status_code=404, detail="Item not found")
-    del db[item_id]
-    return {"status": "deleted"}
-
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+@app.post('/contacts')
+async def post_contact(contact: Number) -> dict:
+    if any(
+        contact.number == i.number
+        for i in contacts_of_users
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Number is already exists"
+        )
+    contacts_of_users.append(contact)
+    return {
+        'contact' : contact.number,
+        'added' : True
+    }

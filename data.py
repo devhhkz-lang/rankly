@@ -1,5 +1,5 @@
 users = {
     "id" : 1, 
-    "username" : "Dulat",
-    "password" : "12345"
+    "username" : "admin",
+    "password" : "admin"
 }
